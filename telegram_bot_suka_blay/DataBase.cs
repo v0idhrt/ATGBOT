@@ -1,94 +1,67 @@
-﻿namespace telegram_bot_suka_blay
+﻿using Npgsql;
+
+namespace telegram_bot_suka_blay
 {
-    using Npgsql;
-
-    // public class ApplicationContext : DbContext
-    // {
-    //     public DbSet<User> Users { get; set; } = null!;
-    //
-    //     public ApplicationContext()
-    //     {
-    //         Database.EnsureCreated();
-    //     }
-    //
-    //     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    //     {
-    //         optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=users;Username=postgres;Password=root");
-    //     }
-    // }
-
     public class DataBase
     {
         static NpgsqlConnection con;
+        NpgsqlCommand cmd;
         public DataBase()
         {
-           con = new NpgsqlConnection(
-                connectionString: "Server=localhost;Port=5432;Username=postgres;Password=root;Database=users");
-           con.Open();
-        }
-        
-        public static async void Test()
-        {
             con = new NpgsqlConnection(
-                connectionString: "Server=localhost;Port=5432;Username=postgres;Password=root;Database=users");
+                 connectionString: "Server=localhost;Port=5432;Username=postgres;Password=123;Database=users");
             con.Open();
-            using var cmd = new NpgsqlCommand();
+            cmd = new NpgsqlCommand();
             cmd.Connection = con;
+        }
+        ~DataBase()
+        {
+            con.Close();
+        }
 
-            await GetBySubject();
-        }
-        
-        
-        public static async Task<IEnumerable<User>> GetBySubject()
+        public async void insertUser(User us)
         {
-            con = new NpgsqlConnection(
-                connectionString: "Server=localhost;Port=5432;Username=postgres;Password=root;Database=users");
-            con.Open();
-            using var cmd = new NpgsqlCommand();
-            cmd.Connection = con;
-            cmd.CommandText = "SELECT \"Id\", \"Age\", \"ComradeId\" FROM users.users;";
-            NpgsqlDataReader reader = await cmd.ExecuteReaderAsync();
-            var result = new List<User>();
-            while (await reader.ReadAsync())
+            var user = await getUser(us.Id);
+            if (user.Id == 0)
             {
-                Console.WriteLine(reader["Id"]);
-                Console.WriteLine(reader["Age"]);
-                Console.WriteLine(reader["ComradeId"]);
-                result.Add(new User(
-                    id: (int)reader["Id"],
-                    age: (int)reader["Age"],
-                    comradeId: (int)reader["ComradeId"]));
+                cmd.CommandText = $"INSERT INTO users (id, age, comradeid) VALUES ({us.Id}, {us.Age}, {us.ComradeId})";
+                cmd.ExecuteNonQuery();
             }
+            else
+            {
+                Console.WriteLine($"User {us.Id} already exist!");
+            }
+        }
+
+        public async void deleteUser(User us)
+        {
+            cmd.CommandText = $"DELETE FROM users WHERE id = {us.Id}";
+            cmd.ExecuteNonQuery();
+        }
+
+        public async void updateUser(User us)
+        {
+            cmd.CommandText = $"UPDATE users SET age = {us.Age}, comradeid = {us.ComradeId} WHERE id = {us.Id}";
+            cmd.ExecuteNonQuery();
+        }
+
+        public async Task<User> getUser(long id)
+        {
+            User result;
+
+            cmd.CommandText = $"SELECT * FROM users WHERE id='{id}'";
+            NpgsqlDataReader reader = cmd.ExecuteReader();
+
+            if (await reader.ReadAsync())
+            {
+                result = new User(Convert.ToInt64(reader["id"]), (int)reader["age"], Convert.ToInt64(reader["comradeid"]));
+            }
+            else
+            {
+                result = new User();
+            }
+            reader.Close();
             return result;
         }
-        
-    }
-    // public class DataBase
-    // {
-    //     public static void GetData()
-    //     {
-    //         using (ApplicationContext db = new ApplicationContext())
-    //         {
-    //             // создаем два объекта User
-    //             User user1 = new User { Id = 123213123, Age = 33 };
-    //             User user2 = new User { Id = 77777777, Age = 26 };
-    //
-    //             // добавляем их в бд
-    //             db.Users.AddRange(user1, user2);
-    //             db.SaveChanges();
-    //         }
-    //
-    //         using (ApplicationContext db = new ApplicationContext())
-    //         {
-    //             // получаем объекты из бд и выводим на консоль
-    //             var users = db.Users.ToList();
-    //             Console.WriteLine("Users list:");
-    //             foreach (User u in users)
-    //             {
-    //                 Console.WriteLine($"{u.Id} - {u.Age}");
-    //             }
-    //         }
-    //     }
-    // };
+    };
 }
-
