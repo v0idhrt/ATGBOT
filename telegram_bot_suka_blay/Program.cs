@@ -27,7 +27,7 @@ var callbackButtonsAge = new InlineKeyboardButton[][]
     }
 };
 
-var bot = new TelegramBotClient("7401680833:AAF1K829jOUFgCDnoMft336BcvM1ucS9mFk");
+var bot = new TelegramBotClient("");
 bot.StartReceiving(OnUpdate, async (bot, ex, cts) => Console.WriteLine(ex));
 
 var me = await bot.GetMeAsync();
