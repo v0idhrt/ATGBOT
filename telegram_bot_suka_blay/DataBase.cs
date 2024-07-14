@@ -38,12 +38,13 @@ namespace telegram_bot_suka_blay
             cmd.CommandText = $"DELETE FROM users WHERE id = {us.Id}";
             cmd.ExecuteNonQuery();
         }
-
+        
         public async void updateUser(User us)
         {
             cmd.CommandText = $"UPDATE users SET age = {us.Age}, comradeid = {us.ComradeId} WHERE id = {us.Id}";
             cmd.ExecuteNonQuery();
         }
+        
 
         public async Task<User> getUser(long id)
         {
