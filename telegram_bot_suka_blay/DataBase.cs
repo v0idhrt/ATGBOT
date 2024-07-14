@@ -9,7 +9,7 @@ namespace telegram_bot_suka_blay
         public DataBase()
         {
             con = new NpgsqlConnection(
-                 connectionString: "Server=localhost;Port=5432;Username=postgres;Password=123;Database=users");
+                 connectionString: "Server=localhost;Port=5432;Username=postgres;Password=root;Database=users");
             con.Open();
             cmd = new NpgsqlCommand();
             cmd.Connection = con;
@@ -38,12 +38,13 @@ namespace telegram_bot_suka_blay
             cmd.CommandText = $"DELETE FROM users WHERE id = {us.Id}";
             cmd.ExecuteNonQuery();
         }
-
+        
         public async void updateUser(User us)
         {
             cmd.CommandText = $"UPDATE users SET age = {us.Age}, comradeid = {us.ComradeId} WHERE id = {us.Id}";
             cmd.ExecuteNonQuery();
         }
+        
 
         public async Task<User> getUser(long id)
         {
