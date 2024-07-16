@@ -19,9 +19,9 @@ namespace telegram_bot_suka_blay
             con.Close();
         }
 
-        public async void insertUser(User us)
+        public async void InsertUser(User us)
         {
-            var user = await getUser(us.Id);
+            var user = await GetUser(us.Id);
             if (user.Id == 0)
             {
                 cmd.CommandText = $"INSERT INTO users (id, age, comradeid) VALUES ({us.Id}, {us.Age}, {us.ComradeId})";
@@ -33,20 +33,20 @@ namespace telegram_bot_suka_blay
             }
         }
 
-        public async void deleteUser(User us)
+        public async void DeleteUser(User us)
         {
             cmd.CommandText = $"DELETE FROM users WHERE id = {us.Id}";
             cmd.ExecuteNonQuery();
         }
         
-        public async void updateUser(User us)
+        public async void UpdateUser(User us)
         {
             cmd.CommandText = $"UPDATE users SET age = {us.Age}, comradeid = {us.ComradeId} WHERE id = {us.Id}";
             cmd.ExecuteNonQuery();
         }
         
 
-        public async Task<User> getUser(long id)
+        public async Task<User> GetUser(long id)
         {
             User result;
 
@@ -55,7 +55,8 @@ namespace telegram_bot_suka_blay
 
             if (await reader.ReadAsync())
             {
-                result = new User(Convert.ToInt64(reader["id"]), (int)reader["age"], Convert.ToInt64(reader["comradeid"]));
+                result = new User(Convert.ToInt64(reader["id"]), (int)reader["age"], 
+                    Convert.ToInt64(reader["comradeid"]), (string)(reader["state"]));
             }
             else
             {

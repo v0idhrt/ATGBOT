@@ -1,4 +1,5 @@
 ﻿using System.Reflection.Metadata;
+using Microsoft.EntityFrameworkCore.Query.Internal;
 using telegram_bot_suka_blay;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -13,9 +14,15 @@ Dictionary<long, string> state = new Dictionary<long, string>();
 bool isExec = true;
 
 using var cts = new CancellationTokenSource();
+
 var buttons = new KeyboardButton[]
 {
-    "найти собеседника", "остановить диалог", "ebatnya"
+    "Найти собеседника", "Остановить диалог", "Профиль"
+};
+
+var startButtons = new KeyboardButton[]
+{
+    "Найти собеседника", "Профиль"
 };
 
 var callbackButtonsAge = new InlineKeyboardButton[][]
@@ -27,6 +34,11 @@ var callbackButtonsAge = new InlineKeyboardButton[][]
     }
 };
 
+var findComradeKeyboard = new KeyboardButton[]
+{
+    "Остановить поиск", "Профиль"
+};
+
 
 var bot = new TelegramBotClient("TOKEN");
 bot.StartReceiving(OnUpdate, async (bot, ex, cts) => Console.WriteLine(ex));
@@ -34,8 +46,8 @@ bot.StartReceiving(OnUpdate, async (bot, ex, cts) => Console.WriteLine(ex));
 var me = await bot.GetMeAsync();
 
 Parallel.Invoke(
-    () => { linkComrads(); },
-    () => { stopExec(); }
+    () => { LinkComrades(); },
+    () => { StopExec(); }
 );
 
 
@@ -56,20 +68,22 @@ async Task OnUpdate(ITelegramBotClient bot, Update update, CancellationToken ct)
 }
 async Task UpdateCallbackQuery(ITelegramBotClient bot, Update update, CancellationToken ct)
 {
-    telegram_bot_suka_blay.User us = await db.getUser((long)update.CallbackQuery.Message.Chat.Id);
+    telegram_bot_suka_blay.User us = await db.GetUser((long)update.CallbackQuery.Message.Chat.Id);
     switch (state[us.Id])
     {
         case "STARTMENU":
             if (update.CallbackQuery.Data == "Возраст_да")
             {
-                await bot.SendTextMessageAsync(us.Id, "Да!");
+                await bot.SendTextMessageAsync(us.Id, "Хорошо. Сколько тебе лет?");
                 state[us.Id] = "AGE";
             }
             else if (update.CallbackQuery.Data == "Возраст_нет")
             {
-                await bot.SendTextMessageAsync(us.Id, "Хуила(");
+                await bot.SendTextMessageAsync(us.Id, "Хорошо. Тогда мы начали поиск собеседника!");
                 await bot.EditMessageReplyMarkupAsync(us.Id, update.CallbackQuery.Message.MessageId);
                 state[us.Id] = "READYTOCHAT";
+                usersQueue.Add(us);
+                
             }
             break;
         default:
@@ -91,48 +105,64 @@ async Task UpdateMessage(ITelegramBotClient bot, Update update, CancellationToke
         return;
     }
 
-    telegram_bot_suka_blay.User us = await db.getUser((long)msg.Chat.Id);
+    telegram_bot_suka_blay.User us = await db.GetUser((long)msg.Chat.Id);
     if (us.Id == 0)
     {
         us.Id = (long)msg.Chat.Id;
-        db.insertUser(us);
+        db.InsertUser(us);
     }
     Console.WriteLine($"{us.Id}, {(long)msg.Chat.Id}");
 
     switch (msg.Text)
     {
         case "/start":
-            {
-                await bot.SendTextMessageAsync(us.Id, "Привет! Хочешь расскать что-нибудь о себе?", replyMarkup:
+        {
+                await bot.SendStickerAsync(us.Id,
+                InputFile.FromString("CAACAgIAAxkBAAEG84NmltOgcSQZnp8OgfT_lZtIUSbdoQACJhcAAgOz-UvLvlelPb0vtzUE"));
+                await bot.SendTextMessageAsync(us.Id, "Привет!", replyMarkup:
+                    new ReplyKeyboardMarkup(startButtons) {ResizeKeyboard = true});
+                await bot.SendTextMessageAsync(us.Id, "Хочешь расскать что-нибудь о себе?!", replyMarkup: 
                     new InlineKeyboardMarkup(callbackButtonsAge));
                 state[us.Id] = "STARTMENU";
                 break;
             }
-        case "найти собеседника":
+        case "Найти собеседника":
             {
-                await db.getUser(us.Id);
-                if (containsById(us) == false)
+                await db.GetUser(us.Id);
+                if (ContainsById(us) == false)
                 {
                     usersQueue.Add(us);
-                    await bot.SendTextMessageAsync(us.Id, "Вы начали поиск собеседника");
+                    await bot.SendTextMessageAsync(us.Id, "Вы начали поиск собеседника", 
+                        replyMarkup: new ReplyKeyboardMarkup(findComradeKeyboard) {ResizeKeyboard = true});
                 }
 
+                state[us.Id] = "FINDING";
                 break;
             }
-        case "остановить диалог":
+        case "Остановить поиск":
+        {
+            if (state[us.Id] == "FINDING" && ContainsById(us))
             {
-                if (us.ComradeId == 0 && containsById(us))
+                RemoveById(us);
+                await bot.SendTextMessageAsync(us.Id, "Вы остановили поиск собеседника",
+                    replyMarkup: new ReplyKeyboardMarkup(startButtons){ResizeKeyboard = true});
+            }
+            break;
+        }
+        case "Остановить диалог":
+            {
+                if (us.ComradeId == 0 && ContainsById(us))
                 {
-                    removeById(us);
+                    RemoveById(us);
                     await bot.SendTextMessageAsync(us.Id, "Вы остнановили чат");
                 }
                 else if (us.ComradeId != 0)
                 {
-                    telegram_bot_suka_blay.User comrade = await db.getUser(us.ComradeId);
+                    telegram_bot_suka_blay.User comrade = await db.GetUser(us.ComradeId);
                     us.ComradeId = 0;
                     comrade.ComradeId = 0;
-                    db.updateUser(us);
-                    db.updateUser(comrade);
+                    db.UpdateUser(us);
+                    db.UpdateUser(comrade);
                     await bot.SendTextMessageAsync(us.Id, $"Вы остнановили чат",
                         replyMarkup: new ReplyKeyboardMarkup(buttons) { ResizeKeyboard = true });
                     await bot.SendTextMessageAsync(comrade.Id, $"Ваш собеседник остановил чат",
@@ -144,7 +174,7 @@ async Task UpdateMessage(ITelegramBotClient bot, Update update, CancellationToke
             }
         case "ebatnya":
             {
-                db.deleteUser(us);
+                db.DeleteUser(us);
                 break;
             }
         default:
@@ -154,7 +184,26 @@ async Task UpdateMessage(ITelegramBotClient bot, Update update, CancellationToke
                 Console.WriteLine($"{us.Id}");
                 if (us.ComradeId == 0)
                 {
-
+                    switch (state[us.Id])
+                    {
+                        case "AGE":
+                        {
+                            int age;
+                            Int32.TryParse(msg.Text, out age);
+                            if (age is > 0 and < 100)
+                            {
+                                us.Age = age;
+                                await bot.SendTextMessageAsync(us.Id, $"Услышали! Вам {age} лет");
+                                state[us.Id] = "GENDER";
+                            }
+                            else
+                            {
+                                await bot.SendTextMessageAsync(us.Id, "Нам кажется, что вы ввели некорретный возраст.   \nДавайте попробуем ещё раз");
+                                state[us.Id] = "AGE";
+                            }
+                            break;
+                        }
+                    }
                 }
                 else
                 {
@@ -181,7 +230,7 @@ async Task UpdateMessage(ITelegramBotClient bot, Update update, CancellationToke
     }
 }
 
-void stopExec()
+void StopExec()
 {
     Console.WriteLine($"@{me.Username} is running... Press Enter to terminate");
     Console.ReadLine();
@@ -189,7 +238,7 @@ void stopExec()
     cts.Cancel();
 }
 
-async void linkComrads()
+async void LinkComrades()
 {
     while (isExec)
     {
@@ -197,12 +246,12 @@ async void linkComrads()
         {
             usersQueue[0].ComradeId = usersQueue[1].Id;
             usersQueue[1].ComradeId = usersQueue[0].Id;
-            db.updateUser(usersQueue[0]);
-            db.updateUser(usersQueue[1]);
+            db.UpdateUser(usersQueue[0]);
+            db.UpdateUser(usersQueue[1]);
             await bot.SendTextMessageAsync(usersQueue[0].Id, "Собеседник найден!");
             await bot.SendTextMessageAsync(usersQueue[1].Id, "Собеседник найден!");
-            removeById(usersQueue[0]);
-            removeById(usersQueue[0]);
+            RemoveById(usersQueue[0]);
+            RemoveById(usersQueue[0]);
         }
 
         Thread.Sleep(1000);
@@ -210,7 +259,7 @@ async void linkComrads()
 }
 
 
-bool containsById(telegram_bot_suka_blay.User us)
+bool ContainsById(telegram_bot_suka_blay.User us)
 {
     foreach (telegram_bot_suka_blay.User u in usersQueue)
     {
@@ -223,7 +272,7 @@ bool containsById(telegram_bot_suka_blay.User us)
     return false;
 }
 
-void removeById(telegram_bot_suka_blay.User us)
+void RemoveById(telegram_bot_suka_blay.User us)
 {
     for (int i = 0; i < usersQueue.Count; i++)
     {
